@@ -2,14 +2,16 @@ buildscript {
     ext {
         buildToolsVersion = "35.0.0"
         minSdkVersion = 24
-        compileSdkVersion = 35
-        targetSdkVersion = 34
-        ndkVersion = "26.1.10909125"
-        kotlinVersion = "1.9.24"
+        compileSdkVersion = 36
+        targetSdkVersion = 36
+        ndkVersion = "25.2.9519653"
+        kotlinVersion = "2.0.20"
+        kspVersion = "2.0.20-1.0.25"
     }
     repositories {
         google()
         mavenCentral()
+        maven { url 'https://jitpack.io' }
     }
     dependencies {
         classpath("com.android.tools.build:gradle")

@@ -1,79 +1,194 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# GitHub Developer Dashboard
 
-# Getting Started
+React Native CLI app for browsing GitHub repositories with a small set of supporting screens and a cache-first flow.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+The codebase is intentionally practical: enough structure to stay maintainable, but not so much abstraction that it feels overbuilt for the app size.
 
-## Step 1: Start the Metro Server
+## Highlights
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+- React Native CLI 0.76 (not Expo)
+- TypeScript + Redux Toolkit for the main data flow
+- SQLite cache so repository results can come back after relaunch
+- Network-aware fetches with offline fallback messages
+- Reusable loading, empty, and error states
+- FlatList tuning where it actually matters
 
-To start Metro, run the following command from the _root_ of your React Native project:
+## Tech Stack
+
+- React Native 0.76
+- TypeScript 5
+- Redux Toolkit + React Redux
+- React Navigation (Bottom Tabs + Nested Stacks)
+- Axios (interceptors, retries, error mapping)
+- SQLite (react-native-sqlite-storage)
+- AsyncStorage (theme/user preferences)
+
+## Project Structure
+
+```text
+src/
+   app/                # App bootstrap and global providers
+   components/         # Reusable UI blocks (feedback states, etc.)
+   features/           # Feature modules (repositories, developers, settings)
+   hooks/              # Typed custom hooks
+   navigation/         # Root, tabs, and feature stack navigators
+   services/           # API client, GitHub API, network manager, database
+   store/              # Redux store, slices, selectors, thunks
+   theme/              # Theming system + provider
+   types/              # Shared type definitions
+```
+
+## Environment Configuration
+
+The app uses environment files per deployment target:
+
+- .env.development
+- .env.staging
+- .env.production
+
+Expected variables:
+
+```env
+API_URL=https://api.github.com
+API_TIMEOUT=10000
+ENABLE_LOGGING=true
+ENVIRONMENT=development
+```
+
+## Getting Started
+
+### 1) Install dependencies
 
 ```bash
-# using npm
+npm install
+```
+
+### 2) Start Metro
+
+```bash
 npm start
-
-# OR using Yarn
-yarn start
 ```
 
-## Step 2: Start your Application
-
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
-
-### For Android
+### 3) Run on Android
 
 ```bash
-# using npm
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### For iOS
+### 4) Run on iOS
 
 ```bash
-# using npm
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+## Available Scripts
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+- npm start: start Metro bundler
+- npm run android: build and run Android app
+- npm run ios: build and run iOS app
+- npm run lint: run ESLint
+- npm run test: run Jest tests
 
-## Step 3: Modifying your App
+## Architecture Overview
 
-Now that you have successfully run the app, let's modify it.
+### State Management
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+- Repositories slice
+   - Search, detail, trending, favorites
+   - Normalized byId/allIds shape
+- Developers slice
+   - Search and detail flows for GitHub users
+- Settings slice
+   - Theme and cache actions
+- UI slice
+   - Global UI state (modals/loading/toasts)
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+### Offline-First Data Flow
 
-## Congratulations! :tada:
+1. UI dispatches thunk
+2. Thunk checks SQLite cache first
+3. If fresh cache exists, return cached response
+4. If cache miss and online, fetch network and sync cache
+5. If cache miss and offline, return domain NO_INTERNET error
 
-You've successfully run and modified your React Native App. :partying_face:
+### Database Layer
 
-### Now what?
+- DatabaseService singleton (connection + migrations)
+- Repository pattern DAOs
+   - RepositoryRepository
+   - SearchCacheRepository
+   - SyncMetadataRepository
+- Cache maintenance and TTL-based invalidation
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+### Performance Strategy
 
-# Troubleshooting
+- FlatList virtualization tuning
+- Stable memoized callbacks and item components
+- Per-row render pressure reduced with favorite lookup map
+- Selector memoization throughout repository queries
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Implemented Features
 
-# Learn More
+- Repository search
+- Trending repositories
+- Infinite scroll pagination for search results
+- Pull-to-refresh
+- Favorite toggle
+- Repository details with README preview
+- Developer search and profile screens
+- Settings screen with theme toggle and cache cleanup
+- Offline mode banner
+- Error boundaries and screen feedback states
 
-To learn more about React Native, take a look at the following resources:
+## Quality Gates
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- TypeScript strict compile passes
+- ESLint integration configured
+- No destructive state mutations outside Redux Toolkit reducers
+- Centralized error taxonomy with AppError
+
+## Known Constraints and Tradeoffs
+
+- GitHub public API rate limit applies (unauthenticated requests)
+- README preview fetch returns plain text currently
+- App lifecycle handling is basic and focused on startup/background maintenance rather than full background sync
+- Some screens are intentionally compact so the app stays easy to read
+
+## Scalability Notes
+
+The codebase is structured for extension with:
+
+- Feature-local modules and shared contracts
+- Clear service boundaries between API, cache, and UI
+- Replaceable persistence abstraction for future encrypted or remote sync storage
+- Middleware insertion points for analytics, telemetry, and observability
+
+## Additional Documentation
+
+- docs/ARCHITECTURE.md
+- docs/INTERVIEW_GUIDE.md
+
+## Troubleshooting
+
+### Metro watcher issue on Windows
+
+If Metro reports watch errors under expo-modules-autolinking build paths, ensure metro.config.js contains a resolver blockList entry for that path.
+
+### Android build issues
+
+- Clean Gradle cache and rebuild
+- Verify Android SDK and platform tools installation
+
+### iOS build issues
+
+- Run pod install inside ios directory
+- Ensure Xcode command line tools are configured
+
+## License
+
+This repository is for technical evaluation and demonstration purposes.
+
+## Future Improvements
+
+- **Real request cancellation throughout the stack:** the code now accepts abort signals on API calls, but UI components and some higher-level flows still rely on stale-result suppression rather than actively cancelling in-flight requests. Wiring component-level cancellation (e.g. aborting previous search requests when the query changes) and adding integration tests would complete this flow.
+- **Database integration tests and tighter CI coverage:** current tests mock DAO calls for speed and determinism. Adding a small, isolated SQLite integration test suite (CI job that runs an emulator or node-native sqlite runner) would catch migration and schema regressions early.
