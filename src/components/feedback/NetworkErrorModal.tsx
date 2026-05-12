@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useNetworkState } from '../../hooks/useNetworkState';
 import { useTheme } from '../../hooks/useTheme';
@@ -6,11 +6,23 @@ import { useTheme } from '../../hooks/useTheme';
 export const NetworkErrorModal: React.FC = () => {
   const { isConnected, isInternetReachable } = useNetworkState();
   const { theme } = useTheme();
+  const [dismissed, setDismissed] = useState(false);
 
   const isOnline = isConnected && isInternetReachable;
 
+  useEffect(() => {
+    if (isOnline) {
+      setDismissed(false);
+    }
+  }, [isOnline]);
+
   return (
-    <Modal transparent animationType="fade" visible={!isOnline} onRequestClose={() => {}}>
+    <Modal
+      transparent
+      animationType="fade"
+      visible={!isOnline && !dismissed}
+      onRequestClose={() => setDismissed(true)}
+    >
       <View style={styles.backdrop}>
         <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
           <Text style={[styles.title, { color: theme.colors.text }]}>No internet connection</Text>
@@ -20,9 +32,7 @@ export const NetworkErrorModal: React.FC = () => {
           </Text>
           <View style={styles.actionsRow}>
             <Pressable
-              onPress={() => {
-                // noop: modal visibility is tied to actual network state
-              }}
+              onPress={() => setDismissed(true)}
               style={[styles.dismissButton, { borderColor: theme.colors.borderLight }]}
             >
               <Text style={[styles.dismissText, { color: theme.colors.textSecondary }]}>
