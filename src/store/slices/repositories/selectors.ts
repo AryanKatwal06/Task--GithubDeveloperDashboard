@@ -38,7 +38,7 @@ const selectRepositoriesSlice = (state: RootState) => {
       activeRequestId: null,
     } as RepositoriesSliceState;
   }
-  
+
   return state.repositories;
 };
 
@@ -61,8 +61,9 @@ const selectAllRepositoryIds = createSelector(
 /**
  * Select favorite repository IDs
  */
-const selectFavoriteIds = createSelector([selectRepositoriesSlice], (repositories) =>
-  repositories.favoriteIds
+const selectFavoriteIds = createSelector(
+  [selectRepositoriesSlice],
+  (repositories) => repositories.favoriteIds
 );
 
 /**

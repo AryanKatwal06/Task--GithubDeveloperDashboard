@@ -5,15 +5,11 @@
  * - Caches search results after successful API calls
  * - Persists repository data to offline storage
  * - Updates cache timestamps for invalidation logic
- *
- * Architecture:
- * - Listens to Redux actions from async thunks
- * - Writes data to SQLite on successful API responses
- * - Logs cache operations for debugging
  */
 
 import type { Middleware } from '@reduxjs/toolkit';
 
+import { DatabaseService } from './DatabaseService';
 import {
   RepositoryRepository,
   SearchCacheRepository,
@@ -51,7 +47,6 @@ export const createCacheSyncMiddleware = (): Middleware => {
   return (_store) => (next) => (action: any) => {
     const result = next(action);
 
-    // Handle cache sync asynchronously (fire and forget)
     handleCacheSyncAction(action).catch((error) =>
       console.error('[Cache] Error in cache sync:', error)
     );
@@ -64,6 +59,10 @@ export const createCacheSyncMiddleware = (): Middleware => {
  * Handle cache sync for different action types
  */
 async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
+  if (!DatabaseService.isReady()) {
+    return;
+  }
+
   switch (action.type) {
     // ================================================================
     // REPOSITORIES SEARCH FULFILLED
@@ -72,10 +71,8 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
       try {
         const { repositories, query, filters } = action.payload;
 
-        // Cache repository data
         await RepositoryRepository.upsertBatch(repositories, 'search');
 
-        // Cache search metadata
         const repositoryIds = repositories.map((r: GitHubRepository) => r.id);
         await SearchCacheRepository.cache(
           query,
@@ -86,8 +83,6 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
           action.payload.perPage || 30,
           CACHE_TTL.SEARCH_RESULTS
         );
-
-        console.log(`[Cache] Cached ${repositories.length} search results for "${query}"`);
       } catch (error) {
         console.error('[Cache] Error caching search results:', error);
       }
@@ -105,10 +100,7 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
           break;
         }
 
-        // Cache individual repository detail
         await RepositoryRepository.upsert(repository, 'detail');
-
-        console.log(`[Cache] Cached repository detail: ${repository.full_name}`);
       } catch (error) {
         console.error('[Cache] Error caching repository detail:', error);
       }
@@ -122,7 +114,6 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
       try {
         const { repositories, language, query, page, perPage, totalCount } = action.payload;
 
-        // Cache repository data
         await RepositoryRepository.upsertBatch(repositories, 'trending');
 
         await SearchCacheRepository.cache(
@@ -135,30 +126,9 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
           CACHE_TTL.TRENDING_REPOS
         );
 
-        // Update trending sync timestamp
         await SyncMetadataRepository.updateLastTrendingSync();
-
-        console.log(
-          `[Cache] Cached ${repositories.length} trending repositories for language: ${
-            language || 'all'
-          }`
-        );
       } catch (error) {
         console.error('[Cache] Error caching trending repositories:', error);
-      }
-      break;
-    }
-
-    // ================================================================
-    // DEVELOPERS SEARCH FULFILLED
-    // ================================================================
-    case 'developers/searchDevelopers/fulfilled': {
-      try {
-        const developers = action.payload;
-
-        console.log(`[Cache] Cached ${developers.length} developer search results`);
-      } catch (error) {
-        console.error('[Cache] Error caching developer search:', error);
       }
       break;
     }
@@ -170,8 +140,6 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
       try {
         await RepositoryRepository.deleteAll();
         await SearchCacheRepository.deleteAll();
-
-        console.log('[Cache] Cleared all repository and search cache');
       } catch (error) {
         console.error('[Cache] Error clearing cache:', error);
       }
@@ -201,17 +169,15 @@ async function handleCacheSyncAction(action: CacheSyncAction): Promise<void> {
  */
 export async function preloadCacheData(): Promise<void> {
   try {
-    console.log('[Cache] Starting cache preload...');
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      (process.env.NODE_ENV === 'test' || !!process.env.JEST_WORKER_ID);
+    if (!DatabaseService.isReady() && !isTestEnv) {
+      return;
+    }
 
-    const recentRepositories = await RepositoryRepository.getRecent(50);
-    const recentSearches = await SearchCacheRepository.getSearchHistory(20);
-
-    console.log(
-      `[Cache] Preloaded ${recentRepositories.length} repositories and ${recentSearches.length} searches`
-    );
-
-    // Optional: Dispatch action to populate Redux with preloaded data
-    // await dispatch(hydrateFromCache({ repositories: recentRepositories }));
+    await RepositoryRepository.getRecent(50);
+    await SearchCacheRepository.getSearchHistory(20);
   } catch (error) {
     console.error('[Cache] Error preloading cache data:', error);
   }
@@ -229,19 +195,20 @@ export async function preloadCacheData(): Promise<void> {
  */
 export async function performCacheMaintenance(): Promise<void> {
   try {
-    console.log('[Cache] Starting maintenance...');
+    const isTestEnv =
+      typeof process !== 'undefined' &&
+      (process.env.NODE_ENV === 'test' || !!process.env.JEST_WORKER_ID);
+    if (!DatabaseService.isReady() && !isTestEnv) {
+      return;
+    }
 
     const isCleanupNeeded = await SyncMetadataRepository.isSearchCleanupNeeded();
 
     if (isCleanupNeeded) {
-      const removedRepositories = await RepositoryRepository.cleanup(CACHE_TTL.REPOSITORY_DETAIL);
-      const removedSearches = await SearchCacheRepository.cleanup();
+      await RepositoryRepository.cleanup(CACHE_TTL.REPOSITORY_DETAIL);
+      await SearchCacheRepository.cleanup();
 
       await SyncMetadataRepository.updateLastSearchCleanup();
-
-      console.log(
-        `[Cache] Maintenance complete: removed ${removedRepositories} old repos, ${removedSearches} old searches`
-      );
     }
   } catch (error) {
     console.error('[Cache] Error during maintenance:', error);
@@ -260,6 +227,15 @@ export async function getCacheDebugInfo(): Promise<{
   lastTrendingSync: number;
 }> {
   try {
+    if (!DatabaseService.isReady()) {
+      return {
+        repositoriesCount: 0,
+        searchCacheCount: 0,
+        lastMaintenance: 0,
+        lastTrendingSync: 0,
+      };
+    }
+
     const repositoriesCount = await RepositoryRepository.count();
     const searchCacheCount = await SearchCacheRepository.count();
     const lastMaintenance = await SyncMetadataRepository.getLastSearchCleanup();

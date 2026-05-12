@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNetworkState } from '../../hooks/useNetworkState';
 import { useTheme } from '../../hooks/useTheme';
@@ -14,7 +15,8 @@ export const OfflineBanner: React.FC = () => {
   }
 
   return (
-    <View
+    <SafeAreaView
+      edges={['top']}
       style={[styles.container, { backgroundColor: theme.colors.warning }]}
       accessibilityRole="alert"
       accessibilityLiveRegion="polite"
@@ -22,15 +24,17 @@ export const OfflineBanner: React.FC = () => {
       <Text style={[styles.text, { color: theme.colors.textInverted }]}>
         Offline mode: showing cached data when available.
       </Text>
-    </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 10,
   },
   text: {
     fontSize: 12,

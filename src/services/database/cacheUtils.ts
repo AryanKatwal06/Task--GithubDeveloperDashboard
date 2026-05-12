@@ -202,7 +202,7 @@ export function calculateCachePressure(currentItems: number, maxItems: number = 
 }
 
 // ============================================================================
-// DEBUGGING & METRICS
+// CACHE STATISTICS
 // ============================================================================
 
 /**
@@ -246,17 +246,4 @@ export function getCacheStats(cacheEntries: Array<{ cached_at: number; ttl_ms: n
     oldestAge,
     youngestAge: youngestAge === Infinity ? 0 : youngestAge,
   };
-}
-
-/**
- * Log cache performance metrics
- */
-export function logCacheMetrics(label: string, stats: ReturnType<typeof getCacheStats>): void {
-  console.log(`[Cache] ${label}:`, {
-    total: stats.total,
-    valid: stats.valid,
-    expired: stats.expired,
-    hitRate: `${((stats.valid / stats.total) * 100).toFixed(1)}%`,
-    avgAge: formatCacheAge(Date.now() - stats.avgAge),
-  });
 }

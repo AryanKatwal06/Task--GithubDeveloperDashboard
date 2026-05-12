@@ -8,12 +8,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { initialRepositoriesState, RepositoryEntity } from './types';
-import {
-  searchRepositories,
-  getRepositoryDetails,
-  getTrendingRepositories,
-  type SearchRepositoriesResponse,
-} from './thunks';
+import { searchRepositories, getRepositoryDetails, getTrendingRepositories } from './thunks';
 import type { AppError } from '../../../types/error';
 
 // ============================================================================
@@ -58,6 +53,55 @@ export const repositoriesSlice = createSlice({
     clearCache: (state) => {
       state.cache.searchQueries = {};
       state.cache.repositoryIds = {};
+      state.searchSession = null;
+      state.currentSearchQuery = '';
+      state.loading = 'idle';
+      state.error = null;
+      state.lastFetchTime = null;
+      state.activeRequestId = null;
+    },
+    /**
+     * Hydrate search session from cached repository IDs.
+     * Used to show all cached repos when offline / from dashboard "See all".
+     */
+    hydrateSearchSession: (
+      state,
+      action: PayloadAction<{
+        query?: string;
+        repositoryIds: string[];
+        repositories?: RepositoryEntity[];
+      }>
+    ) => {
+      const { query = 'Cached Repositories', repositoryIds, repositories } = action.payload;
+
+      // Optionally hydrate entity store with provided repositories
+      if (Array.isArray(repositories) && repositories.length > 0) {
+        repositories.forEach((repo) => {
+          state.byId[repo.id.toString()] = repo;
+          if (!state.allIds.includes(repo.id.toString())) {
+            state.allIds.push(repo.id.toString());
+          }
+        });
+      }
+
+      state.searchSession = {
+        query,
+        filters: {},
+        repositoryIds: repositoryIds.slice(),
+        pagination: {
+          currentPage: 1,
+          pageSize: repositoryIds.length,
+          totalCount: repositoryIds.length,
+          hasMore: false,
+        },
+        timestamp: Date.now(),
+      };
+
+      state.currentSearchQuery = query;
+      state.loading = 'fulfilled';
+      state.error = null;
+      state.lastFetchTime = Date.now();
+      state.activeRequestId = null;
     },
   },
 
@@ -76,62 +120,66 @@ export const repositoriesSlice = createSlice({
       state.activeRequestId = action.meta.requestId;
     });
 
-    builder.addCase(
-      searchRepositories.fulfilled,
-      (state, action: PayloadAction<SearchRepositoriesResponse>) => {
-        if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {
+    builder.addCase(searchRepositories.fulfilled, (state, action) => {
+      if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {
+        return;
+      }
+
+      const { repositories, totalCount, query, filters, page, perPage } = action.payload;
+
+      // Normalize repositories
+      repositories.forEach((repo) => {
+        if (!repo || typeof repo.id !== 'number' || !repo.owner) {
           return;
         }
 
-        const { repositories, totalCount, query, filters, page, perPage } = action.payload;
+        const entity: RepositoryEntity = {
+          ...repo,
+          ownerId: repo.owner.id,
+        } as RepositoryEntity;
 
-        // Normalize repositories: extract owner data
-        repositories.forEach((repo) => {
-          // Store repository without owner (store owner separately)
-          const entity: RepositoryEntity = {
-            ...repo,
-            ownerId: repo.owner.id,
-          } as RepositoryEntity;
+        state.byId[repo.id.toString()] = entity;
+        if (!state.allIds.includes(repo.id.toString())) {
+          state.allIds.push(repo.id.toString());
+        }
+      });
 
-          state.byId[repo.id] = entity;
-          if (!state.allIds.includes(repo.id.toString())) {
-            state.allIds.push(repo.id.toString());
-          }
-        });
+      const validRepoIds = repositories
+        .filter((r) => r && typeof r.id === 'number')
+        .map((r) => r.id.toString());
 
-        const nextRepositoryIds = repositories.map((r) => r.id.toString());
-        const isPaginationContinuation = page > 1 && state.searchSession?.query === query;
-        const previousRepositoryIds = state.searchSession?.repositoryIds ?? [];
+      const isPaginationContinuation = page > 1 && state.searchSession?.query === query;
+      const previousRepositoryIds = state.searchSession?.repositoryIds ?? [];
 
-        const repositoryIds = isPaginationContinuation
-          ? [...previousRepositoryIds, ...nextRepositoryIds].filter(
-              (value, index, array) => array.indexOf(value) === index
-            )
-          : nextRepositoryIds;
+      const repositoryIds = isPaginationContinuation
+        ? [...previousRepositoryIds, ...validRepoIds].filter(
+            (value, index, array) => array.indexOf(value) === index
+          )
+        : validRepoIds;
 
-        // Update search session
-        state.searchSession = {
-          query,
-          filters,
-          repositoryIds,
-          pagination: {
-            currentPage: page,
-            pageSize: perPage,
-            totalCount,
-            hasMore: page * perPage < totalCount,
-          },
-          timestamp: Date.now(),
-        };
+      // Update search session
+      state.searchSession = {
+        query,
+        filters,
+        repositoryIds,
+        pagination: {
+          currentPage: page,
+          pageSize: perPage,
+          totalCount: totalCount || repositories.length,
+          hasMore: page * perPage < (totalCount || repositories.length),
+        },
+        timestamp: Date.now(),
+      };
 
-        state.currentSearchQuery = query;
-        state.loading = 'fulfilled';
-        state.lastFetchTime = Date.now();
-        state.activeRequestId = null;
+      state.currentSearchQuery = query;
+      state.loading = 'fulfilled';
+      state.lastFetchTime = Date.now();
+      state.activeRequestId = null;
+      state.error = null;
 
-        // Cache this search
-        state.cache.searchQueries[query] = Date.now();
-      }
-    );
+      // Cache this search
+      state.cache.searchQueries[query] = Date.now();
+    });
 
     builder.addCase(searchRepositories.rejected, (state, action) => {
       if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {
@@ -167,7 +215,7 @@ export const repositoriesSlice = createSlice({
         ownerId: repository.owner.id,
       } as RepositoryEntity;
 
-      state.byId[repository.id] = entity;
+      state.byId[repository.id.toString()] = entity;
       if (!state.allIds.includes(repository.id.toString())) {
         state.allIds.push(repository.id.toString());
       }
@@ -198,47 +246,44 @@ export const repositoriesSlice = createSlice({
       state.activeRequestId = action.meta.requestId;
     });
 
-    builder.addCase(
-      getTrendingRepositories.fulfilled,
-      (state, action: PayloadAction<SearchRepositoriesResponse>) => {
-        if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {
-          return;
-        }
-
-        const { repositories, query, filters, page, perPage } = action.payload;
-
-        // Store repositories
-        repositories.forEach((repo) => {
-          const entity: RepositoryEntity = {
-            ...repo,
-            ownerId: repo.owner.id,
-          } as RepositoryEntity;
-
-          state.byId[repo.id] = entity;
-          if (!state.allIds.includes(repo.id.toString())) {
-            state.allIds.push(repo.id.toString());
-          }
-        });
-
-        // Update search session for trending
-        state.searchSession = {
-          query,
-          filters,
-          repositoryIds: repositories.map((r) => r.id.toString()),
-          pagination: {
-            currentPage: page,
-            pageSize: perPage,
-            totalCount: repositories.length,
-            hasMore: false, // Trending doesn't have pagination in our impl
-          },
-          timestamp: Date.now(),
-        };
-
-        state.loading = 'fulfilled';
-        state.lastFetchTime = Date.now();
-        state.activeRequestId = null;
+    builder.addCase(getTrendingRepositories.fulfilled, (state, action) => {
+      if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {
+        return;
       }
-    );
+
+      const { repositories, query, filters, page, perPage } = action.payload;
+
+      // Store repositories
+      repositories.forEach((repo) => {
+        const entity: RepositoryEntity = {
+          ...repo,
+          ownerId: repo.owner.id,
+        } as RepositoryEntity;
+
+        state.byId[repo.id.toString()] = entity;
+        if (!state.allIds.includes(repo.id.toString())) {
+          state.allIds.push(repo.id.toString());
+        }
+      });
+
+      // Update search session for trending
+      state.searchSession = {
+        query,
+        filters,
+        repositoryIds: repositories.map((r) => r.id.toString()),
+        pagination: {
+          currentPage: page,
+          pageSize: perPage,
+          totalCount: repositories.length,
+          hasMore: false, // Trending doesn't have pagination in our impl
+        },
+        timestamp: Date.now(),
+      };
+
+      state.loading = 'fulfilled';
+      state.lastFetchTime = Date.now();
+      state.activeRequestId = null;
+    });
 
     builder.addCase(getTrendingRepositories.rejected, (state, action) => {
       if (state.activeRequestId && state.activeRequestId !== action.meta.requestId) {

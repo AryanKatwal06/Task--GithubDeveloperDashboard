@@ -71,6 +71,12 @@ export const apiClient: AxiosInstance = axios.create({
   },
 });
 
+const githubToken = Config.GITHUB_TOKEN || Config.GITHUB_API_TOKEN || Config.GITHUB_ACCESS_TOKEN;
+
+if (githubToken) {
+  apiClient.defaults.headers.common.Authorization = `Bearer ${githubToken}`;
+}
+
 // ============================================================================
 // REQUEST INTERCEPTOR
 // ============================================================================
@@ -90,10 +96,6 @@ apiClient.interceptors.request.use(
 
     // Add timestamp for timing metrics
     (config as any).__startTime = Date.now();
-
-    if (__DEV__) {
-      console.log(`[API] ${method} ${config.url}`);
-    }
 
     return config;
   },
@@ -116,19 +118,11 @@ apiClient.interceptors.request.use(
  * Responsibilities:
  * 1. Map HTTP errors to AppError
  * 2. Remove from pending requests
- * 3. Log metrics (request time, etc)
- * 4. Handle rate limiting
+ * 3. Handle rate limiting
  */
 
 apiClient.interceptors.response.use(
   (response) => {
-    const startTime = (response.config as any)?.__startTime;
-    const duration = startTime ? Date.now() - startTime : 0;
-
-    if (__DEV__) {
-      console.log(`[API] Response ${response.status} (${duration}ms)`);
-    }
-
     return response;
   },
   async (error: AxiosError) => {
@@ -142,10 +136,6 @@ apiClient.interceptors.response.use(
       config.__retryCount = (config.__retryCount || 0) + 1;
 
       const delay = getRetryDelay(config.__retryCount);
-
-      if (__DEV__) {
-        console.log(`[API] Retry attempt ${config.__retryCount}/${MAX_RETRIES} after ${delay}ms`);
-      }
 
       // Wait before retrying
       await new Promise((resolve) => setTimeout(resolve, delay));
@@ -202,7 +192,6 @@ apiClient.interceptors.response.use(
 // UTILITIES
 // ============================================================================
 
-/**
 /**
  * Get API rate limit info from response headers
  *

@@ -17,9 +17,49 @@
 
 import { AxiosError } from 'axios';
 
-import apiClient, { getRateLimitInfo } from './apiClient';
+import apiClient from './apiClient';
+import { CACHE_TTL } from './database/schema';
 import type { GitHubRepository, GitHubUser, GitHubIssue, SearchResponse } from '../types/api';
 import { AppError, ErrorCode } from '../types/error';
+
+const USER_PROFILE_CACHE_TTL = CACHE_TTL.USER_PROFILE;
+
+const userProfileCache = new Map<
+  string,
+  {
+    user: GitHubUser;
+    cachedAt: number;
+  }
+>();
+
+const pendingUserProfileRequests = new Map<string, Promise<GitHubUser>>();
+
+const normalizeLogin = (login: string): string => login.trim().toLowerCase();
+
+const getCachedUserProfile = (login: string): GitHubUser | null => {
+  const cacheKey = normalizeLogin(login);
+  const cachedEntry = userProfileCache.get(cacheKey);
+
+  if (!cachedEntry) {
+    return null;
+  }
+
+  if (Date.now() - cachedEntry.cachedAt > USER_PROFILE_CACHE_TTL) {
+    userProfileCache.delete(cacheKey);
+    return null;
+  }
+
+  return cachedEntry.user;
+};
+
+const cacheUserProfile = (user: GitHubUser): GitHubUser => {
+  userProfileCache.set(normalizeLogin(user.login), {
+    user,
+    cachedAt: Date.now(),
+  });
+
+  return user;
+};
 
 // ============================================================================
 // REPOSITORY API CALLS
@@ -54,10 +94,9 @@ export const searchRepositories = async (
       signal,
     });
 
-    // Extract rate limit info from headers
-    const rateLimitInfo = getRateLimitInfo(response);
-    if (__DEV__) {
-      console.log(`[GitHub] Rate limit: ${rateLimitInfo.remaining}/${rateLimitInfo.limit}`);
+    // Validate response
+    if (!response.data || !Array.isArray(response.data.items)) {
+      throw new Error('Invalid API response structure');
     }
 
     return response.data;
@@ -176,11 +215,37 @@ export const searchUsers = async (
  * Get user profile by login
  */
 export const getUser = async (login: string): Promise<GitHubUser> => {
+  const cachedUser = getCachedUserProfile(login);
+
+  if (cachedUser) {
+    return cachedUser;
+  }
+
+  const cacheKey = normalizeLogin(login);
+  const pendingRequest = pendingUserProfileRequests.get(cacheKey);
+
+  if (pendingRequest) {
+    return pendingRequest;
+  }
+
   try {
-    const response = await apiClient.get<GitHubUser>(`/users/${login}`);
-    return response.data;
+    const userPromise = apiClient
+      .get<GitHubUser>(`/users/${login}`)
+      .then((response) => cacheUserProfile(response.data));
+
+    pendingUserProfileRequests.set(cacheKey, userPromise);
+
+    return await userPromise;
   } catch (error) {
+    const staleUser = userProfileCache.get(cacheKey)?.user;
+
+    if (staleUser && error instanceof AppError && error.statusCode === 403) {
+      return staleUser;
+    }
+
     throw handleAPIError(error, 'Failed to fetch user profile');
+  } finally {
+    pendingUserProfileRequests.delete(cacheKey);
   }
 };
 
@@ -287,19 +352,37 @@ export const getIssue = async (
  * Maps axios errors to AppError with context
  */
 const handleAPIError = (error: unknown, context: string): AppError => {
+  if (__DEV__) {
+    console.error('[GitHub API] Error in', context, ':', error);
+  }
+
   if (error instanceof AppError) {
     return error;
   }
 
   if (error instanceof AxiosError) {
-    const appError = new AppError(
-      error.response?.data?.message || error.message || context,
-      ErrorCode.UNKNOWN_ERROR,
-      {
-        statusCode: error.response?.status,
-        originalError: error,
-      }
-    );
+    const status = error.response?.status;
+    const message = error.response?.data?.message || error.message || context;
+
+    if (__DEV__) {
+      console.error('[GitHub API] Axios error details:', {
+        status,
+        message,
+        url: error.config?.url,
+        method: error.config?.method,
+      });
+    }
+
+    let errorCode = ErrorCode.UNKNOWN_ERROR;
+    if (status === 422) {
+      errorCode = ErrorCode.VALIDATION_ERROR;
+    }
+
+    const appError = new AppError(message, errorCode, {
+      statusCode: status,
+      originalError: error,
+      retryable: status === 429 || status === 503 || !error.response,
+    });
 
     return appError;
   }

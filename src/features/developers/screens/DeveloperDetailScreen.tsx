@@ -20,7 +20,12 @@ export const DeveloperDetailScreen: React.FC<DevelopersStackScreenProps<'Develop
   }, [login, navigation]);
 
   useEffect(() => {
-    if (!developer) {
+    // If we don't have a developer record, or the record is the
+    // lightweight search result (no `bio` / `followers`), fetch full details.
+    const needsFullProfile =
+      !developer || developer.bio === undefined || developer.followers === undefined;
+
+    if (needsFullProfile) {
       void dispatch(getDeveloperDetails(login));
     }
   }, [developer, dispatch, login]);

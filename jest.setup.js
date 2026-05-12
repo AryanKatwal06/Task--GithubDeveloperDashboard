@@ -19,6 +19,19 @@ jest.mock('react-native-gesture-handler', () => {
   };
 });
 
+jest.mock('react-native-safe-area-context', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  return {
+    __esModule: true,
+    SafeAreaProvider: ({ children }) => React.createElement(React.Fragment, null, children),
+    SafeAreaView: ({ children, ...props }) => React.createElement(View, props, children),
+    useSafeAreaInsets: () => ({ top: 0, right: 0, bottom: 0, left: 0 }),
+    initialWindowMetrics: null,
+  };
+});
+
 jest.mock('./src/store', () => {
   const store = {
     getState: () => ({}),
@@ -34,15 +47,69 @@ jest.mock('./src/store', () => {
   };
 });
 
-jest.mock('./src/theme/ThemeProvider', () => ({
-  __esModule: true,
-  ThemeProvider: ({ children }) => children,
-}));
+jest.mock('./src/theme/ThemeProvider', () => {
+  const React = require('react');
 
-jest.mock('@theme/ThemeProvider', () => ({
-  __esModule: true,
-  ThemeProvider: ({ children }) => children,
-}));
+  const defaultTheme = {
+    theme: {
+      colors: {
+        background: '#ffffff',
+        text: '#000000',
+        textSecondary: '#666666',
+        primary: '#0366d6',
+        textInverted: '#ffffff',
+        border: '#dddddd',
+        surface: '#ffffff',
+      },
+    },
+    variant: 'light',
+    setVariant: () => {},
+    toggleTheme: () => {},
+  };
+
+  const ThemeContext = React.createContext(defaultTheme);
+
+  const ThemeProvider = ({ children }) =>
+    React.createElement(ThemeContext.Provider, { value: defaultTheme }, children);
+
+  return {
+    __esModule: true,
+    ThemeProvider,
+    ThemeContext,
+  };
+});
+
+jest.mock('@theme/ThemeProvider', () => {
+  const React = require('react');
+
+  const defaultTheme = {
+    theme: {
+      colors: {
+        background: '#ffffff',
+        text: '#000000',
+        textSecondary: '#666666',
+        primary: '#0366d6',
+        textInverted: '#ffffff',
+        border: '#dddddd',
+        surface: '#ffffff',
+      },
+    },
+    variant: 'light',
+    setVariant: () => {},
+    toggleTheme: () => {},
+  };
+
+  const ThemeContext = React.createContext(defaultTheme);
+
+  const ThemeProvider = ({ children }) =>
+    React.createElement(ThemeContext.Provider, { value: defaultTheme }, children);
+
+  return {
+    __esModule: true,
+    ThemeProvider,
+    ThemeContext,
+  };
+});
 
 jest.mock('./src/navigation/RootNavigator', () => ({
   __esModule: true,

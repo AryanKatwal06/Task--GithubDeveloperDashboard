@@ -3,7 +3,13 @@
  */
 
 export { default as repositoriesReducer } from './slice';
-export { clearSearch, toggleFavorite, clearFavorites, clearCache } from './slice';
+export {
+  clearSearch,
+  toggleFavorite,
+  clearFavorites,
+  clearCache,
+  hydrateSearchSession,
+} from './slice';
 
 export { searchRepositories, getRepositoryDetails, getTrendingRepositories } from './thunks';
 

@@ -45,5 +45,4 @@ export {
   isCleanupNeeded,
   calculateCachePressure,
   getCacheStats,
-  logCacheMetrics,
 } from './cacheUtils';

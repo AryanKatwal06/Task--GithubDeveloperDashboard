@@ -62,14 +62,6 @@ class NetworkStateManager {
         connectionTimestamp: Date.now(),
       };
 
-      if (__DEV__) {
-        console.log('[Network]', {
-          connected: this.currentState.isConnected,
-          reachable: this.currentState.isInternetReachable,
-          type: this.currentState.type,
-        });
-      }
-
       // Notify all listeners
       this.notifyListeners();
     });

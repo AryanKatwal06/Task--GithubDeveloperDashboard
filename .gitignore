@@ -18,76 +18,82 @@ xcuserdata
 *.moved-aside
 DerivedData
 *.hmap
-*.ipa
-*.xcuserstate
-**/.xcode.env.local
-
-# Android/IntelliJ
-#
-build/
-.idea
-.gradle
-local.properties
-*.iml
-*.hprof
-.cxx/
-*.keystore
-!debug.keystore
-
-# node.js
-#
+# Dependencies
 node_modules/
-npm-debug.log
-yarn-error.log
 
-# fastlane
-#
-# It is recommended to not store the screenshots in the git repo. Instead, use fastlane to re-generate the
-# screenshots whenever they are needed.
-# For more information about the recommended setup visit:
-# https://docs.fastlane.tools/best-practices/source-control/
+# Android
+android/build/
+android/app/build/
+android/app/src/main/assets/index.android.bundle
+android/app/build/outputs/**/*.apk
+android/app/build/outputs/**/*.aab
+.gradle/
+local.properties
+*.keystore
+*.jks
+keystores/
 
-**/fastlane/report.xml
-**/fastlane/Preview.html
-**/fastlane/screenshots
-**/fastlane/test_output
+# iOS
+ios/build/
+DerivedData/
+*.xcuserstate
+*.xcworkspace/
+*.ipa
+*.dSYM
+*.app.dSYM
+*.xcarchive
 
-# Bundle artifact
-*.jsbundle
-
-# Ruby / CocoaPods
-**/Pods/
-/vendor/bundle/
-
-# Environment files
-.env
-.env.local
-.env.*.local
-.env.development
-.env.production
-.env.staging
-
-# Bundle
-.bundle/
-
-# Temporary files created by Metro to check the health of the file watcher
-.metro-health-check*
-
-# testing
-/coverage
-
-# IDE
-.vscode/
+# IDEs and editors
 .idea/
+.vscode/
+*.iml
 *.swp
 *.swo
 *~
-.DS_Store
 
-# Yarn
+# Environment files and secrets
+.env
+.env.*
+.envrc
+google-services.json
+GoogleService-Info.plist
+serviceAccount*.json
+*-credentials.json
+*.bak
+*.backup
+*.pem
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.cache
+.metro-health-check*
+.react-native/
+.metro/
+.turbo/
+.expo/
+.expo-shared/
+.expo/cache/
+.expo/web/cache/
+.cxx/
+.bundle/
+coverage/
+dist/
+*.tsbuildinfo
+
+# Native and package manager artifacts
+**/Pods/
+vendor/bundle/
 .yarn/*
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Miscellaneous OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+# IDE

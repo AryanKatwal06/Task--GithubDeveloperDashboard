@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { FlatList, Keyboard, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useTheme } from '../../../hooks/useTheme';
 import { useAppDispatch, useAppSelector } from '../../../store/hooks';
@@ -27,6 +27,7 @@ export const DevelopersScreen: React.FC<DevelopersStackScreenProps<'DevelopersLi
       return;
     }
 
+    Keyboard.dismiss();
     void dispatch(searchDevelopers({ query: trimmed, page: 1 }));
   };
 

@@ -267,7 +267,9 @@ class RepositoryRepositoryImpl {
       staleTimestamp,
     ]);
 
-    console.log(`[DB] Cleaned up ${result.rowsAffected} stale repositories`);
+    if (__DEV__) {
+      console.log(`[DB] Cleaned up ${result.rowsAffected} stale repositories`);
+    }
     return result.rowsAffected;
   }
 }

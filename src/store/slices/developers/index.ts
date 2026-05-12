@@ -12,6 +12,8 @@ import type { GitHubUser } from '../../../types/api';
 import { AppError } from '../../../types/error';
 import type { RootState } from '../../';
 
+const PROFILE_ENRICHMENT_LIMIT = 8;
+
 // ============================================================================
 // STATE & TYPES
 // ============================================================================
@@ -43,14 +45,31 @@ const initialState: DevelopersSliceState = {
 export const searchDevelopers = createAsyncThunk<
   GitHubUser[],
   { query: string; page?: number },
-  { rejectValue: AppError }
+  { rejectValue: string }
 >('developers/searchDevelopers', async ({ query, page = 1 }, { rejectWithValue }) => {
   try {
     const response = await githubAPI.searchUsers(query, page);
-    return response.items;
+    const users = response.items.slice();
+    const enrichmentTargets = users.slice(0, PROFILE_ENRICHMENT_LIMIT);
+
+    await Promise.allSettled(
+      enrichmentTargets.map(async (user, index) => {
+        if (user.bio != null && user.followers != null && user.company != null) {
+          return;
+        }
+
+        try {
+          users[index] = await githubAPI.getUser(user.login);
+        } catch {
+          // Keep the lightweight search result if the full profile cannot be loaded.
+        }
+      })
+    );
+
+    return users;
   } catch (error) {
     if (error instanceof AppError) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
     throw error;
   }
@@ -59,13 +78,13 @@ export const searchDevelopers = createAsyncThunk<
 export const getDeveloperDetails = createAsyncThunk<
   GitHubUser,
   string, // login
-  { rejectValue: AppError }
+  { rejectValue: string }
 >('developers/getDeveloperDetails', async (login, { rejectWithValue }) => {
   try {
     return await githubAPI.getUser(login);
   } catch (error) {
     if (error instanceof AppError) {
-      return rejectWithValue(error);
+      return rejectWithValue(error.message);
     }
     throw error;
   }
@@ -114,8 +133,7 @@ export const developersSlice = createSlice({
 
     builder.addCase(searchDevelopers.rejected, (state, action) => {
       state.loading = 'rejected';
-      const error = action.payload as AppError;
-      state.error = error?.message || 'Failed to search developers';
+      state.error = action.payload || action.error.message || 'Failed to search developers';
     });
 
     builder.addCase(getDeveloperDetails.pending, (state) => {
@@ -133,8 +151,7 @@ export const developersSlice = createSlice({
 
     builder.addCase(getDeveloperDetails.rejected, (state, action) => {
       state.loading = 'rejected';
-      const error = action.payload as AppError;
-      state.error = error?.message || 'Failed to fetch developer details';
+      state.error = action.payload || action.error.message || 'Failed to fetch developer details';
     });
   },
 });
@@ -164,7 +181,7 @@ const selectDevelopersSlice = (state: RootState) => {
       error: null,
     };
   }
-  
+
   return state.developers;
 };
 

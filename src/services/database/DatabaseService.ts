@@ -95,9 +95,7 @@ class DatabaseServiceImpl {
           location: 'default',
           iosDatabaseLocation: 'Documents',
         },
-        () => {
-          console.log('[DB] Database opened successfully');
-        },
+        () => {},
         (error: any) => {
           console.error('[DB] Error opening database:', error);
           throw error;
@@ -118,7 +116,6 @@ class DatabaseServiceImpl {
       await this.runMigrations();
 
       this.isInitialized = true;
-      console.log('[DB] Database initialization complete');
     } catch (error) {
       console.error('[DB] Initialization failed:', error);
       this.db = null;
@@ -143,8 +140,6 @@ class DatabaseServiceImpl {
         }
       }
     }
-
-    console.log('[DB] Tables created/verified');
   }
 
   /**
@@ -163,8 +158,6 @@ class DatabaseServiceImpl {
         }
       }
     }
-
-    console.log('[DB] Indexes created/verified');
   }
 
   /**
@@ -175,27 +168,36 @@ class DatabaseServiceImpl {
     if (!this.db) throw new Error('Database not initialized');
 
     try {
-      const result = await this.query('SELECT value FROM sync_metadata WHERE key = ?', [
-        'db_version',
-      ]);
+      const versionResult = await this.db.executeSql(
+        'SELECT value FROM sync_metadata WHERE key = ?',
+        ['db_version']
+      );
 
-      const currentVersion = result.rows[0]?.value ? parseInt(result.rows[0].value, 10) : 0;
+      const resultSet = versionResult[0];
+      const currentVersion =
+        resultSet && resultSet.rows.length > 0 && resultSet.rows.item(0)?.value
+          ? parseInt(resultSet.rows.item(0).value, 10)
+          : 0;
 
       if (currentVersion < DATABASE_VERSION) {
-        console.log(
-          `[DB] Running migrations from version ${currentVersion} to ${DATABASE_VERSION}`
-        );
-
         // Add future migrations here
         // Example:
         // if (currentVersion < 2) await this.migrationV1ToV2();
 
-        await this.updateSyncMetadata('db_version', DATABASE_VERSION.toString());
+        const now = Date.now();
+        await this.db.executeSql(
+          `INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) VALUES (?, ?, ?)`,
+          ['db_version', DATABASE_VERSION.toString(), now.toString()]
+        );
       }
     } catch (error: any) {
       // First run - set initial version
       if (error?.message?.includes('no such table')) {
-        await this.updateSyncMetadata('db_version', DATABASE_VERSION.toString());
+        const now = Date.now();
+        await this.db.executeSql(
+          `INSERT OR REPLACE INTO sync_metadata (key, value, updated_at) VALUES (?, ?, ?)`,
+          ['db_version', DATABASE_VERSION.toString(), now.toString()]
+        );
       } else {
         throw error;
       }
@@ -321,7 +323,6 @@ class DatabaseServiceImpl {
         await this.db.close();
         this.db = null;
         this.isInitialized = false;
-        console.log('[DB] Database closed');
       } catch (error: any) {
         console.error('[DB] Error closing database:', error);
         throw error;
@@ -344,7 +345,6 @@ class DatabaseServiceImpl {
       await this.query('DELETE FROM search_cache');
       await this.query('DELETE FROM repositories');
       await this.query('DELETE FROM sync_metadata');
-      console.log('[DB] All data cleared');
     } catch (error: any) {
       console.error('[DB] Error clearing database:', error);
       throw error;
@@ -367,6 +367,14 @@ class DatabaseServiceImpl {
       searchCacheCount: searches.rows[0]?.count ?? 0,
       databaseSize: 0, // Platform-specific, would need native code
     };
+  }
+
+  /**
+   * Check if database is initialized
+   * Safe to call before initialization
+   */
+  isReady(): boolean {
+    return this.isInitialized && this.db !== null;
   }
 }
 

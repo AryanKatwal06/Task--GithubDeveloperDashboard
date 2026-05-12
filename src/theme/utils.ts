@@ -77,25 +77,39 @@ export const flexUtils = {
  * <View style={[styles.container, spacingUtils.horizontalPadding('lg')]} />
  */
 export const createSpacingUtils = (spacing: ThemeConfig['spacing']) => ({
-  horizontalPadding: (size: keyof typeof spacing): ViewStyle => ({
+  horizontalPadding: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     paddingHorizontal: spacing[size],
   }),
-  verticalPadding: (size: keyof typeof spacing): ViewStyle => ({
+  verticalPadding: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     paddingVertical: spacing[size],
   }),
-  padding: (size: keyof typeof spacing): ViewStyle => ({
+  padding: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     padding: spacing[size],
   }),
-  horizontalMargin: (size: keyof typeof spacing): ViewStyle => ({
+  horizontalMargin: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     marginHorizontal: spacing[size],
   }),
-  verticalMargin: (size: keyof typeof spacing): ViewStyle => ({
+  verticalMargin: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     marginVertical: spacing[size],
   }),
-  margin: (size: keyof typeof spacing): ViewStyle => ({
+  margin: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     margin: spacing[size],
   }),
-  gap: (size: keyof typeof spacing): ViewStyle => ({
+  gap: (
+    size: keyof Pick<typeof spacing, 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'xxl' | 'xxxl' | 'xxxxl'>
+  ): ViewStyle => ({
     gap: spacing[size],
   }),
 });

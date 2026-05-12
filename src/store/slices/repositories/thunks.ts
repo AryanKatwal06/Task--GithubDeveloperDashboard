@@ -18,9 +18,6 @@ import type { RootState } from '../../';
 // THUNK TYPES
 // ============================================================================
 
-/**
- * Search repositories payload
- */
 export interface SearchRepositoriesPayload {
   query: string;
   page?: number;
@@ -29,9 +26,6 @@ export interface SearchRepositoriesPayload {
   forceRefresh?: boolean;
 }
 
-/**
- * Search response with normalized data
- */
 export interface SearchRepositoriesResponse {
   repositories: GitHubRepository[];
   totalCount: number;
@@ -108,19 +102,6 @@ const getCachedSearchResponse = async (
 // ASYNC THUNKS
 // ============================================================================
 
-/**
- * Search Repositories Thunk
- *
- * WHY separate thunk:
- * - API call is async
- * - Multiple reducers need to run (setLoading, setRepositories, setError)
- * - Need to normalize API response
- * - Handles errors properly
- *
- * @param payload - Search query and pagination params
- * @param thunkAPI - Redux thunk API (dispatch, getState, rejectWithValue)
- * @returns Normalized repositories and search metadata
- */
 export const searchRepositories = createAsyncThunk<
   SearchRepositoriesResponse,
   SearchRepositoriesPayload,
@@ -134,7 +115,6 @@ export const searchRepositories = createAsyncThunk<
 
     if (!forceRefresh) {
       const cachedResponse = await getCachedSearchResponse(query, language, page, perPage);
-
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -152,7 +132,6 @@ export const searchRepositories = createAsyncThunk<
 
     const effectiveQuery = language ? `${query} language:${language}` : query;
 
-    // Call API
     const response: SearchResponse<GitHubRepository> = await githubAPI.searchRepositories(
       effectiveQuery,
       page,
@@ -160,7 +139,6 @@ export const searchRepositories = createAsyncThunk<
       signal
     );
 
-    // Return normalized data
     return {
       repositories: response.items,
       totalCount: response.total_count,
@@ -176,15 +154,16 @@ export const searchRepositories = createAsyncThunk<
     if (error instanceof AppError) {
       return rejectWithValue(error);
     }
-    throw error;
+
+    return rejectWithValue(
+      new AppError(
+        error instanceof Error ? error.message : 'Unknown error',
+        ErrorCode.UNKNOWN_ERROR
+      )
+    );
   }
 });
 
-/**
- * Get Repository Details Thunk
- *
- * Fetches full repository details including README
- */
 export const getRepositoryDetails = createAsyncThunk<
   {
     repository: GitHubRepository;
@@ -235,16 +214,17 @@ export const getRepositoryDetails = createAsyncThunk<
       if (error instanceof AppError) {
         return rejectWithValue(error);
       }
-      throw error;
+
+      return rejectWithValue(
+        new AppError(
+          error instanceof Error ? error.message : 'Unknown error',
+          ErrorCode.UNKNOWN_ERROR
+        )
+      );
     }
   }
 );
 
-/**
- * Get Trending Repositories Thunk
- *
- * Shows recently active popular repositories
- */
 export const getTrendingRepositories = createAsyncThunk<
   SearchRepositoriesResponse,
   { language?: string; page?: number; perPage?: number; forceRefresh?: boolean },
@@ -259,7 +239,6 @@ export const getTrendingRepositories = createAsyncThunk<
 
     if (!forceRefresh) {
       const cachedResponse = await getCachedSearchResponse(trendingQuery, language, page, perPage);
-
       if (cachedResponse) {
         return cachedResponse;
       }
@@ -297,6 +276,12 @@ export const getTrendingRepositories = createAsyncThunk<
     if (error instanceof AppError) {
       return rejectWithValue(error);
     }
-    throw error;
+
+    return rejectWithValue(
+      new AppError(
+        error instanceof Error ? error.message : 'Unknown error',
+        ErrorCode.UNKNOWN_ERROR
+      )
+    );
   }
 });

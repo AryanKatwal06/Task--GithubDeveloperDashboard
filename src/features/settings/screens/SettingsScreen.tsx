@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { useTheme } from '../../../hooks/useTheme';
 import { useAppDispatch } from '../../../store/hooks';
 import { clearCache } from '../../../store/slices/repositories/slice';
-import {
-  getCacheDebugInfo,
-  performCacheMaintenance,
-} from '../../../services/database/cacheSyncMiddleware';
+import { DatabaseService } from '../../../services/database';
+import { getCacheDebugInfo } from '../../../services/database/cacheSyncMiddleware';
 import type { SettingsStackScreenProps } from '../../../types/navigation';
 
 /**
@@ -23,24 +22,39 @@ type SettingsScreenProps =
 export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   const { theme, variant, toggleTheme } = useTheme();
   const dispatch = useAppDispatch();
+  const [isCleaning, setIsCleaning] = useState(false);
   const [cacheInfo, setCacheInfo] = useState({ repositoriesCount: 0, searchCacheCount: 0 });
 
-  useEffect(() => {
-    let mounted = true;
-
-    void getCacheDebugInfo().then((info) => {
-      if (mounted) {
-        setCacheInfo({
-          repositoriesCount: info.repositoriesCount,
-          searchCacheCount: info.searchCacheCount,
-        });
-      }
+  const refreshCacheInfo = useCallback(async (): Promise<void> => {
+    const info = await getCacheDebugInfo();
+    setCacheInfo({
+      repositoriesCount: info.repositoriesCount,
+      searchCacheCount: info.searchCacheCount,
     });
-
-    return () => {
-      mounted = false;
-    };
   }, []);
+
+  // Update cache info on mount and when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      void refreshCacheInfo();
+    }, [refreshCacheInfo])
+  );
+
+  const handleRunCleanup = useCallback(async (): Promise<void> => {
+    if (isCleaning) {
+      return;
+    }
+
+    setIsCleaning(true);
+
+    try {
+      dispatch(clearCache());
+      await DatabaseService.clear();
+      await refreshCacheInfo();
+    } finally {
+      setIsCleaning(false);
+    }
+  }, [dispatch, isCleaning, refreshCacheInfo]);
 
   return (
     <ScrollView
@@ -86,13 +100,13 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
         </Text>
         <Pressable
           onPress={() => {
-            void performCacheMaintenance();
-            dispatch(clearCache());
+            void handleRunCleanup();
           }}
+          disabled={isCleaning}
           style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
         >
           <Text style={[styles.primaryButtonText, { color: theme.colors.textInverted }]}>
-            Run cache cleanup
+            {isCleaning ? 'Cleaning cache...' : 'Run cache cleanup'}
           </Text>
         </Pressable>
       </View>

@@ -212,8 +212,6 @@ class SearchCacheRepositoryImpl {
       `,
       [now.toString()]
     );
-
-    console.log(`[DB] Cleaned up ${result.rowsAffected} expired search caches`);
     return result.rowsAffected;
   }
 
@@ -282,10 +280,7 @@ class SearchCacheRepositoryImpl {
       cutoffTime,
     ]);
 
-    const totalRemoved = expiredCount + oldResult.rowsAffected;
-    console.log(`[DB] Cleaned up ${totalRemoved} search cache entries`);
-
-    return totalRemoved;
+    return expiredCount + oldResult.rowsAffected;
   }
 }
 
